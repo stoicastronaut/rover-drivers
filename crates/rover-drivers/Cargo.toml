@@ -1,0 +1,19 @@
+[package]
+name = "rover-drivers"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Feature-gated catalog of Rover embedded drivers"
+
+[features]
+default = []
+mpu6050 = ["dep:mpu6050"]
+all-drivers = ["mpu6050"]
+
+[dependencies]
+mpu6050 = { path = "../mpu6050", optional = true }
+
+[lints]
+workspace = true

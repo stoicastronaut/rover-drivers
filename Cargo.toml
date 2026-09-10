@@ -1,0 +1,19 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/mpu6050",
+    "crates/rover-drivers",
+]
+
+[workspace.package]
+edition = "2024"
+license = "MIT"
+repository = "https://github.com/stoicastronaut/rover-drivers"
+rust-version = "1.98"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+all = "deny"
+pedantic = "deny"
