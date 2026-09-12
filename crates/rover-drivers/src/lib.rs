@@ -14,3 +14,6 @@ pub use bmp388;
 
 #[cfg(feature = "mpu6050")]
 pub use mpu6050;
+
+#[cfg(feature = "gm009605")]
+pub use gm009605;

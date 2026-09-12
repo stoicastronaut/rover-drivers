@@ -1,6 +1,8 @@
 [workspace]
 resolver = "2"
-members = ["crates/bmp388",
+members = [
+    "crates/bmp388",
+    "crates/gm009605",
     "crates/mpu6050",
     "crates/rover-drivers",
 ]

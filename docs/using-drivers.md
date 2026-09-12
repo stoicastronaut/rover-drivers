@@ -1,63 +1,52 @@
 # Using Rover drivers
 
-The portable crates live under `crates/` and use `no_std`:
+The portable `no_std` crates live under `crates/`. Firmware selects drivers
+through the `rover-drivers` catalog, which has no default features.
 
-- `mpu6050` provides asynchronous Embedded HAL 1.0 I2C register access and
-  samples converted to SI units.
-- `rover-imu` provides axis transforms, stationary gyro calibration, and
-  six-axis Madgwick orientation estimation.
-- `rover-telemetry` provides allocation-free version-1 JSON Lines telemetry
-  serialization.
+## Depend on the catalog
 
-Firmware should depend on the feature-gated catalog crate and enable only the
-components it uses. For an ESP32 firmware project located beside this
-repository:
+For a firmware repository beside this checkout:
 
 ```toml
 [dependencies]
-rover-drivers = { path = "../../../rover-drivers/crates/rover-drivers", default-features = false, features = ["mpu6050", "imu", "telemetry"] }
+rover-drivers = { path = "../rover-drivers/crates/rover-drivers", default-features = false, features = ["gm009605"] }
+embedded-graphics = "0.8"
 ```
 
-Import the enabled components through that package:
+Once the desired revision is available on the remote, a Git dependency also works:
+
+```toml
+[dependencies]
+rover-drivers = { git = "https://github.com/stoicastronaut/rover-drivers", default-features = false, features = ["gm009605"] }
+```
+
+Pin `rev` to a committed revision for reproducible firmware builds.
 
 ```rust
-use rover_drivers::{
-    mpu6050::{Address, Config as MpuConfig, Mpu6050},
-    imu::{ImuMeasurement, Vector3},
-    telemetry::{Envelope, Message, serialize_json_line},
-};
+use rover_drivers::gm009605::{Address, Gm009605};
 ```
 
-The catalog crate does not select a chip or own a HAL. Choose the target and
-ESP32 feature in the consuming firmware's `esp-hal` dependency, create its
-asynchronous I2C peripheral, and pass it to `Mpu6050`.
+The catalog does not select a chip or own a HAL. Choose the ESP32 chip in the
+firmware's `esp-hal` dependency, create its async I2C peripheral, and pass the
+handle to the driver. Drivers can also accept compatible shared-bus adapters.
 
 ## Features
 
-`rover-drivers` has no default features. Enable only the components required by
-your firmware:
+| Feature | Import | Device |
+| --- | --- | --- |
+| `bmp388` | `rover_drivers::bmp388` | Bosch pressure/temperature sensor |
+| `mpu6050` | `rover_drivers::mpu6050` | Accelerometer/gyroscope |
+| `gm009605` | `rover_drivers::gm009605` | Four-pin SSD1306 128×64 OLED |
+| `all-drivers` | All of the above | Every catalog entry |
 
-- `mpu6050` re-exports `mpu6050` as `rover_drivers::mpu6050`.
-- `imu` re-exports `rover-imu` as `rover_drivers::imu`.
-- `telemetry` re-exports `rover-telemetry` as `rover_drivers::telemetry`.
-- `all-drivers` enables every catalog entry, primarily for examples and tests.
-
-For a firmware that only reads the MPU6050:
-
-```toml
-[dependencies]
-rover-drivers = { path = "../rover-drivers/crates/rover-drivers", default-features = false, features = ["mpu6050"] }
-```
+See the [GM009605 API and drawing example](../crates/gm009605/README.md) and
+[upstream driver evaluation](gm009605-driver-evaluation.md).
 
 ## Direct portable-crate use
 
-Applications that intentionally target more than one MCU can also depend
-directly on a portable package instead:
+Applications can also depend directly on an individual crate:
 
 ```toml
 [dependencies]
-mpu6050 = { path = "../rover-drivers/crates/mpu6050" }
+gm009605 = { path = "../rover-drivers/crates/gm009605" }
 ```
-
-Use a platform crate when it exists for the target MCU so MCU-level driver
-selection stays centralized.

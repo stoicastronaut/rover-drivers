@@ -11,9 +11,11 @@ description = "Feature-gated catalog of Rover embedded drivers"
 default = []
 bmp388 = ["dep:bmp388"]
 mpu6050 = ["dep:mpu6050"]
-all-drivers = ["bmp388", "mpu6050"]
+gm009605 = ["dep:gm009605"]
+all-drivers = ["bmp388", "mpu6050", "gm009605"]
 
 [dependencies]
+gm009605 = { version = "0.1.0", path = "../gm009605", optional = true }
 bmp388 = { version = "0.1.0", path = "../bmp388", optional = true }
 mpu6050 = { version = "0.1.0", path = "../mpu6050", optional = true }
 
