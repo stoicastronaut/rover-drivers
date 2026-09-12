@@ -1,0 +1,25 @@
+[package]
+name = "gm009605"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Async no_std I2C driver for the GM009605 128x64 SSD1306 OLED"
+readme = "README.md"
+keywords = ["embedded-hal", "ssd1306", "oled", "no-std", "esp32"]
+categories = ["embedded", "no-std", "hardware-support"]
+
+[dependencies]
+embedded-hal-async = "1.0"
+embedded-graphics-core = "0.4"
+display-interface = "0.5"
+ssd1306 = { version = "0.10.0", default-features = false, features = ["async"] }
+
+[dev-dependencies]
+embedded-hal = "1.0"
+embedded-graphics = "0.8"
+futures = { version = "0.3.34", features = ["executor"] }
+
+[lints]
+workspace = true
