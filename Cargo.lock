@@ -325,6 +325,7 @@ name = "rover-drivers"
 version = "0.1.0"
 dependencies = [
  "bmp388",
+ "gm009605",
  "mpu6050",
 ]
 
