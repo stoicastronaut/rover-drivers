@@ -6,8 +6,11 @@
 //! import it from this crate. For example:
 //!
 //! ```toml
-//! rover-drivers = { version = "0.1", default-features = false, features = ["mpu6050"] }
+//! rover-drivers = { version = "0.1", default-features = false, features = ["bmp388"] }
 //! ```
+
+#[cfg(feature = "bmp388")]
+pub use bmp388;
 
 #[cfg(feature = "mpu6050")]
 pub use mpu6050;
