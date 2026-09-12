@@ -13,8 +13,9 @@ project.
 - `docs/using-drivers.md` explains how firmware should depend on and import the
   drivers.
 
-The ESP32-C6 firmware consumes `rover-drivers` with just the MPU6050, IMU, and
-telemetry features it needs, rather than local copies of the individual driver
-crates. Future firmware selects its drivers through the same feature interface.
+Firmware selects the `bmp388`, `mpu6050`, and `gm009605` drivers through
+catalog features. The GM009605 driver supports the four-pin SSD1306 128×64 OLED
+with async I2C and `embedded-graphics`; see its [API guide](crates/gm009605/README.md)
+and [upstream evaluation](docs/gm009605-driver-evaluation.md).
 
 See [the usage guide](docs/using-drivers.md) for dependency and import examples.
