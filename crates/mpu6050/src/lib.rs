@@ -3,6 +3,7 @@
 
 use embedded_hal_async::i2c::I2c;
 
+/// Standard acceleration of gravity in m/s², used to convert g to SI units.
 const STANDARD_GRAVITY_M_S2: f32 = 9.806_65;
 
 // Frequency divider; 1kHz -> 200Hz
@@ -110,6 +111,8 @@ pub struct Config {
 }
 
 impl Default for Config {
+    /// Use ±4 g acceleration and ±500 °/s angular velocity ranges, the
+    /// [`Dlpf::Hz44`] low-pass filter, and a 200 Hz sample rate.
     fn default() -> Self {
         Self {
             accel_range: AccelRange::G4,

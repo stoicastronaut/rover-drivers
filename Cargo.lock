@@ -219,6 +219,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "icm20948"
+version = "0.1.0"
+dependencies = [
+ "embedded-hal",
+ "embedded-hal-async",
+ "futures",
+]
+
+[[package]]
 name = "maybe-async-cfg"
 version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -326,6 +335,7 @@ version = "0.1.0"
 dependencies = [
  "bmp388",
  "gm009605",
+ "icm20948",
  "mpu6050",
 ]
 

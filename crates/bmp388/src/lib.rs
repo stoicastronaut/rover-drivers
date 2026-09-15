@@ -126,6 +126,8 @@ pub struct Config {
 }
 
 impl Default for Config {
+    /// Use 8× pressure oversampling, 2× temperature oversampling, a 25 Hz
+    /// output data rate, and an IIR filter coefficient of 3.
     fn default() -> Self {
         Self {
             pressure_oversampling: Oversampling::X8,
