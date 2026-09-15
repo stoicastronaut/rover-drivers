@@ -5,6 +5,10 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
+description = "Async no_std I2C driver for the MPU6050 accelerometer and gyroscope"
+readme = "README.md"
+keywords = ["embedded-hal", "mpu6050", "imu", "no-std"]
+categories = ["embedded", "no-std", "hardware-support"]
 
 [dependencies]
 embedded-hal-async = "1.0"

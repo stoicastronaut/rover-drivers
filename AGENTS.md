@@ -7,8 +7,7 @@ drivers. Each driver is an independent crate under `crates/`:
 
 - `crates/bmp388/` — Bosch BMP388 pressure sensor driver.
 - `crates/mpu6050/` — MPU6050 IMU driver.
-- `crates/gm009605/` — GM009605/SSD1306 OLED driver, with its tests in
-  `src/tests.rs`.
+- `crates/gm009605/` — GM009605/SSD1306 OLED driver.
 - `crates/rover-drivers/` — feature-gated catalog crate for firmware users.
 
 Keep hardware-neutral code in driver crates; add `platforms/` only for shared,
@@ -49,9 +48,18 @@ HAL buses; do not require physical hardware for the workspace test suite.
 
 ## Commit & Pull Request Guidelines
 
-Recent history uses concise imperative subjects and Conventional Commit-style
-scopes (for example, `feat(gm009605): add async SSD1306 OLED driver`). Keep a
-commit focused on one driver or catalog/docs change. Pull requests should state
-the hardware/API impact, list validation commands, link the relevant issue,
-and update crate or usage documentation when public behavior changes. Include
-screenshots only for display-output changes where they clarify the result.
+Use concise, imperative Conventional Commit-style subjects when working on a
+branch, with a relevant scope where it clarifies ownership (for example,
+`feat(gm009605): add async SSD1306 OLED driver`, `feat(catalog): expose a
+driver feature`, or `docs: document driver consumption`). Keep each commit
+focused on one driver, catalog change, or documentation change; include the
+corresponding tests and public documentation in that same focused commit.
+
+This repository squash-merges pull requests, so `main` retains the squash
+commit subject (for example, `Feat/add lcd driver (#2)`) rather than every
+branch commit. When choosing wording or scope, inspect visible feature branches
+and `git log --all`, not only `main`; missing branch commits are expected after
+a squash merge. Pull requests should state the hardware/API impact, list
+validation commands, link the relevant issue, and update crate or usage
+documentation when public behavior changes. Include screenshots only for
+display-output changes where they clarify the result.

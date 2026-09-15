@@ -1,66 +1,42 @@
 # BMP388
 
-An asynchronous, `no_std` I2C driver for the Bosch BMP388 barometric pressure
-sensor, built on `embedded-hal-async` 1.0.
+Async, `no_std` I2C driver for the Bosch BMP388 barometric pressure sensor. It uses `embedded-hal-async`, owns the bus handle, and does not select an MCU, pins, executor, or allocator.
 
-## Features
+## Capabilities and scope
 
-- I2C addresses `0x76` and `0x77`
-- identity checking and bounded soft-reset readiness waits
-- factory calibration loading and Bosch-compatible floating-point compensation
-- typed pressure/temperature oversampling, output data rate, and IIR filtering
-- fresh one-shot forced measurements
-- continuous normal-mode measurements
-- explicit pressure in pascals and temperature in degrees Celsius
-- no MCU-specific dependencies
+- Selects I2C address `0x76` or `0x77`, verifies chip ID `0x50`, loads factory calibration, and applies typed oversampling, rate, and IIR-filter settings.
+- Returns compensated pressure in pascals and temperature in degrees Celsius.
+- Supports fresh forced readings and continuous normal-mode readings.
 
-FIFO, interrupts, sensor time, SPI, and altitude calculations are outside the
-current v1 scope.
+FIFO, interrupts, sensor time, SPI, and altitude calculations are outside the current scope.
 
-## Usage
+## Firmware dependency and quickstart
 
-Add the crate directly:
-
-```toml
-[dependencies]
-bmp388 = "0.1"
-embedded-hal-async = "1.0"
-```
-
-Or enable it through the workspace catalog:
+Enable the driver from the catalog:
 
 ```toml
 [dependencies]
 rover-drivers = { version = "0.1", default-features = false, features = ["bmp388"] }
 ```
 
-Initialize the sensor and request a fresh forced measurement:
-
 ```rust,ignore
-use bmp388::{Address, Bmp388};
+use rover_drivers::bmp388::{Address, Bmp388};
 
-let mut bmp388 = Bmp388::new(i2c, Address::Primary);
-bmp388.init(&mut delay).await?;
+let mut sensor = Bmp388::new(i2c, Address::Primary);
+sensor.init(&mut delay).await?;
 
-let sample = bmp388.measure_forced(&mut delay).await?;
-log::info!(
-    "temperature={} C pressure={} Pa",
-    sample.temperature_celsius,
-    sample.pressure_pa,
-);
+let sample = sensor.measure_forced(&mut delay).await?;
+// sample.temperature_celsius; sample.pressure_pa
 ```
 
-`Address::Primary` selects `0x76` (SDO low), while `Address::Secondary` selects
-`0x77` (SDO high). The enum tells the driver which device address to use; it
-does not electrically change the breakout's address.
+`Address::Primary` is `0x76` (SDO low); `Address::Secondary` is `0x77` (SDO high). The enum selects the bus address and does not change breakout wiring.
 
-## Configuration
+## Configuration and measurements
 
-Use `Bmp388::with_config` before initialization, or call `configure` while the
-sensor is not in normal mode:
+Pass a `Config` to `Bmp388::with_config` before initialization. The driver rejects normal-mode configurations whose conversion time exceeds the selected output-data-rate period.
 
 ```rust,ignore
-use bmp388::{Address, Bmp388, Config, IirFilter, OutputDataRate, Oversampling};
+use rover_drivers::bmp388::{Address, Bmp388, Config, IirFilter, OutputDataRate, Oversampling};
 
 let config = Config {
     pressure_oversampling: Oversampling::X8,
@@ -68,42 +44,20 @@ let config = Config {
     output_data_rate: OutputDataRate::Hz25,
     iir_filter: IirFilter::Coefficient3,
 };
-
-let mut bmp388 = Bmp388::with_config(i2c, Address::Primary, config);
-bmp388.init(&mut delay).await?;
+let mut sensor = Bmp388::with_config(i2c, Address::Primary, config);
+sensor.init(&mut delay).await?;
+sensor.start_normal_mode().await?;
+let sample = sensor.read_normal_measurement(&mut delay).await?;
 ```
 
-The driver rejects normal-mode configurations whose pressure and temperature
-conversion time cannot fit inside the selected output-data-rate period.
+Call `stop_normal_mode` before `configure`. `read_latest` returns the current data registers without waiting for freshness; `read_raw` returns uncompensated ADC values.
 
-For continuous measurements:
+## API and lifecycle behavior
 
-```rust,ignore
-bmp388.start_normal_mode().await?;
+`new` and `with_config` perform no I/O. `init` waits for startup, verifies the device, soft-resets it, loads calibration, and leaves it in sleep mode. Compensated measurements and normal mode require successful initialization; `read_raw` does not. A soft reset invalidates cached calibration, so call `init` before another compensated reading.
 
-loop {
-    let sample = bmp388.read_normal_measurement(&mut delay).await?;
-    // Use sample.pressure_pa and sample.temperature_celsius.
-}
-```
+I2C failures and cancelled operations can leave hardware configuration partially applied; recover the HAL bus as needed and rerun `init` before using compensated output. `release` returns the owned I2C handle.
 
-Call `stop_normal_mode` before applying a new configuration. `read_latest` is
-available when an application explicitly wants the current register contents
-without waiting for freshness; `read_raw` exposes the uncompensated ADC values
-for advanced use.
+## Hardware notes
 
-## Integration notes
-
-- The application supplies the I2C peripheral and an async `DelayNs`
-  implementation; neither is tied to a particular microcontroller.
-- `init` waits for startup, checks chip ID `0x50`, performs a soft reset, reads
-  the 21-byte calibration block, and writes the selected configuration.
-- Soft reset invalidates cached calibration. Call `init` again before requesting
-  compensated output.
-- Pressure compensation depends on the temperature-derived `t_lin` value, so
-  the driver always reads and compensates pressure and temperature together.
-- Validate pull-ups, SDO wiring, and the breakout PCB revision during hardware
-  bring-up.
-
-The implementation follows the Bosch BMP388 datasheet and BMP3 Sensor API
-floating-point compensation equations.
+Provide an async `I2c` bus and `DelayNs` implementation. Verify pull-ups, SDO wiring, and the breakout revision during bring-up. The implementation follows the Bosch BMP388 datasheet and BMP3 Sensor API floating-point compensation equations.
