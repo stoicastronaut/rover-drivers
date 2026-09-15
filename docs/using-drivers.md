@@ -35,12 +35,16 @@ handle to the driver. Drivers can also accept compatible shared-bus adapters.
 | Feature | Import | Device |
 | --- | --- | --- |
 | `bmp388` | `rover_drivers::bmp388` | Bosch pressure/temperature sensor |
+| `icm20948` | `rover_drivers::icm20948` | Nine-axis IMU and die temperature, magnetometer via I2C bypass |
 | `mpu6050` | `rover_drivers::mpu6050` | Accelerometer/gyroscope |
 | `gm009605` | `rover_drivers::gm009605` | Four-pin SSD1306 128×64 OLED |
 | `all-drivers` | All of the above | Every catalog entry |
 
 See the [GM009605 API and drawing example](../crates/gm009605/README.md) and
 [upstream driver evaluation](gm009605-driver-evaluation.md).
+
+See the [ICM-20948 API and quickstart](../crates/icm20948/README.md) for
+configuration, initialization, and the magnetometer bypass address constraint.
 
 ## Direct portable-crate use
 

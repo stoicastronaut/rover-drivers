@@ -7,12 +7,18 @@ drivers. Each driver is an independent crate under `crates/`:
 
 - `crates/bmp388/` — Bosch BMP388 pressure sensor driver.
 - `crates/mpu6050/` — MPU6050 IMU driver.
+- `crates/icm20948/` — ICM-20948 nine-axis IMU driver.
 - `crates/gm009605/` — GM009605/SSD1306 OLED driver.
 - `crates/rover-drivers/` — feature-gated catalog crate for firmware users.
 
 Keep hardware-neutral code in driver crates; add `platforms/` only for shared,
 MCU-specific glue. Put integration guidance in `docs/`, crate-specific usage
 notes in each crate's `README.md`, and reference material in `data_sheets/`.
+
+## Library Versions
+
+See [README.md](README.md#library-versions) for Rust and dependency versions;
+update that inventory when manifests or resolved dependencies change.
 
 ## Build, Test, and Development Commands
 
