@@ -17,3 +17,6 @@ pub use mpu6050;
 
 #[cfg(feature = "gm009605")]
 pub use gm009605;
+
+#[cfg(feature = "icm20948")]
+pub use icm20948;

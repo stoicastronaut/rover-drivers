@@ -4,6 +4,7 @@ members = [
     "crates/bmp388",
     "crates/gm009605",
     "crates/mpu6050",
+    "crates/icm20948",
     "crates/rover-drivers",
 ]
 
