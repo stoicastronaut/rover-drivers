@@ -127,7 +127,7 @@ fn delay(ms: u32) -> Step {
 }
 
 // Literal datasheet values, independent of production register constants/encoders.
-fn initialization(address: u8) -> Vec<Step> {
+fn inertial_initialization(address: u8) -> Vec<Step> {
     vec![
         delay(100),
         write(address, 0x7f, 0),
@@ -146,13 +146,28 @@ fn initialization(address: u8) -> Vec<Step> {
         write(address, 0x11, 4),
         write(address, 0x14, 0x1b),
         write(address, 0x7f, 0),
+        write(address, 0x0f, 0),
+        delay(100),
+    ]
+}
+
+fn magnetometer_initialization(address: u8, mode: u8) -> Vec<Step> {
+    vec![
+        write(address, 0x7f, 0),
         write(address, 0x0f, 2),
         write(0x0c, 0x32, 1),
         delay(1),
         read(0x0c, 1, &[9]),
-        write(0x0c, 0x31, 8),
+        write(0x0c, 0x31, mode),
         delay(100),
     ]
+}
+
+fn initialization(address: u8) -> Vec<Step> {
+    inertial_initialization(address)
+        .into_iter()
+        .chain(magnetometer_initialization(address, 8))
+        .collect()
 }
 fn setup(
     steps: Vec<Step>,
@@ -187,16 +202,26 @@ fn assert_close(actual: f32, expected: f32) {
 
 #[test]
 fn construction_and_uninitialized_reads_do_no_io_and_release_returns_bus() {
-    let (mut sensor, _, script) = setup(vec![], Address::Primary, Config::default());
-    assert_eq!(block_on(sensor.read_raw()), Err(Error::NotInitialized));
-    assert_eq!(block_on(sensor.read_sample()), Err(Error::NotInitialized));
+    let (mut sensor, mut delay, script) = setup(vec![], Address::Primary, Config::default());
+    assert_eq!(
+        block_on(sensor.read_raw()),
+        Err(Error::InertialNotInitialized)
+    );
+    assert_eq!(
+        block_on(sensor.read_sample()),
+        Err(Error::InertialNotInitialized)
+    );
     assert_eq!(
         block_on(sensor.read_magnetic_raw()),
-        Err(Error::NotInitialized)
+        Err(Error::InertialNotInitialized)
     );
     assert_eq!(
         block_on(sensor.read_magnetic_sample()),
-        Err(Error::NotInitialized)
+        Err(Error::InertialNotInitialized)
+    );
+    assert_eq!(
+        block_on(sensor.init_magnetometer(&mut delay)),
+        Err(Error::InertialNotInitialized)
     );
     assert!(Rc::ptr_eq(&sensor.release().0.0, &script.0));
     script.assert_done();
@@ -255,46 +280,69 @@ fn rejects_invalid_dividers_before_io() {
 
 #[test]
 fn rejects_unexpected_inertial_and_magnetic_identities() {
-    for (index, address, expected_error) in [
-        (2, 0x68, Error::InvalidWhoAmI(0x68)),
-        (20, 0x0c, Error::InvalidMagnetometerWhoAmI(0x68)),
-    ] {
-        let mut steps = initialization(0x68);
-        steps.truncate(index + 1);
-        steps[index] = read(address, u8::from(index != 2), &[0x68]);
-        let (mut sensor, mut delay, script) = setup(steps, Address::Primary, Config::default());
-        assert_eq!(block_on(sensor.init(&mut delay)), Err(expected_error));
-        assert_eq!(block_on(sensor.read_raw()), Err(Error::NotInitialized));
-        script.assert_done();
-    }
+    let mut inertial = inertial_initialization(0x68);
+    inertial.truncate(3);
+    inertial[2] = read(0x68, 0, &[0x68]);
+    let (mut sensor, mut delay, script) = setup(inertial, Address::Primary, Config::default());
+    assert_eq!(
+        block_on(sensor.init(&mut delay)),
+        Err(Error::InvalidWhoAmI(0x68))
+    );
+    assert_eq!(
+        block_on(sensor.read_raw()),
+        Err(Error::InertialNotInitialized)
+    );
+    script.assert_done();
+
+    let mut magnetic = magnetometer_initialization(0x68, 8);
+    magnetic.truncate(5);
+    magnetic[4] = read(0x0c, 1, &[0x68]);
+    let steps = inertial_initialization(0x68)
+        .into_iter()
+        .chain(magnetic)
+        .chain([write(0x68, 0x7f, 0), read(0x68, 0x2d, &burst())])
+        .collect();
+    let (mut sensor, mut delay, script) = setup(steps, Address::Primary, Config::default());
+    assert_eq!(
+        block_on(sensor.init(&mut delay)),
+        Err(Error::InvalidMagnetometerWhoAmI(0x68))
+    );
+    assert_eq!(
+        block_on(sensor.read_magnetic_raw()),
+        Err(Error::MagnetometerNotInitialized)
+    );
+    block_on(sensor.read_raw()).unwrap();
+    script.assert_done();
 }
 
 #[test]
-fn each_initialization_bus_failure_blocks_reads_and_retries_full_sequence() {
-    let init = initialization(0x68);
-    for index in 0..init.len() {
-        if matches!(init[index].action, Action::Delay(_)) {
+fn each_inertial_initialization_bus_failure_blocks_reads_and_retries_full_sequence() {
+    let inertial = inertial_initialization(0x68);
+    for index in 0..inertial.len() {
+        if matches!(inertial[index].action, Action::Delay(_)) {
             continue;
         }
         // Start initialized to ensure a failed reinitialization invalidates old state.
-        let mut failed = init[..=index].to_vec();
+        let mut failed = inertial[..=index].to_vec();
         failed[index].outcome = Outcome::Fail;
-        let steps = init
-            .iter()
-            .cloned()
+        let steps = initialization(0x68)
+            .into_iter()
             .chain(failed)
-            .chain(init.clone())
+            .chain(initialization(0x68))
             .collect();
         let (mut sensor, mut delay, script) = setup(steps, Address::Primary, Config::default());
         block_on(sensor.init(&mut delay)).unwrap();
         assert_eq!(
-            block_on(sensor.init(&mut delay)),
+            block_on(sensor.init_inertial(&mut delay)),
             Err(Error::Bus(FakeError))
         );
-        assert_eq!(block_on(sensor.read_raw()), Err(Error::NotInitialized));
+        assert_eq!(
+            block_on(sensor.read_raw()),
+            Err(Error::InertialNotInitialized)
+        );
         assert_eq!(
             block_on(sensor.read_magnetic_raw()),
-            Err(Error::NotInitialized)
+            Err(Error::InertialNotInitialized)
         );
         block_on(sensor.init(&mut delay)).unwrap();
         script.assert_done();
@@ -302,26 +350,84 @@ fn each_initialization_bus_failure_blocks_reads_and_retries_full_sequence() {
 }
 
 #[test]
-fn cancellation_at_every_init_await_requires_complete_reinitialization() {
-    let init = initialization(0x68);
-    for index in 0..init.len() {
-        let mut pending = init[..=index].to_vec();
+fn cancellation_at_every_inertial_init_await_requires_complete_reinitialization() {
+    let inertial = inertial_initialization(0x68);
+    for index in 0..inertial.len() {
+        let mut pending = inertial[..=index].to_vec();
         pending[index].outcome = Outcome::Pending;
-        let steps = init
-            .iter()
-            .cloned()
+        let steps = initialization(0x68)
+            .into_iter()
             .chain(pending)
-            .chain(init.clone())
+            .chain(initialization(0x68))
             .collect();
         let (mut sensor, mut delay, script) = setup(steps, Address::Primary, Config::default());
         block_on(sensor.init(&mut delay)).unwrap();
-        cancel(sensor.init(&mut delay));
-        assert_eq!(block_on(sensor.read_raw()), Err(Error::NotInitialized));
+        cancel(sensor.init_inertial(&mut delay));
+        assert_eq!(
+            block_on(sensor.read_raw()),
+            Err(Error::InertialNotInitialized)
+        );
         assert_eq!(
             block_on(sensor.read_magnetic_raw()),
-            Err(Error::NotInitialized)
+            Err(Error::InertialNotInitialized)
         );
         block_on(sensor.init(&mut delay)).unwrap();
+        script.assert_done();
+    }
+}
+
+#[test]
+fn each_magnetometer_init_bus_failure_preserves_inertial_reads_and_retries_only_magnetic_io() {
+    let magnetic = magnetometer_initialization(0x68, 8);
+    for index in 0..magnetic.len() {
+        if matches!(magnetic[index].action, Action::Delay(_)) {
+            continue;
+        }
+        let mut failed = magnetic[..=index].to_vec();
+        failed[index].outcome = Outcome::Fail;
+        let steps = initialization(0x68)
+            .into_iter()
+            .chain(failed)
+            .chain([write(0x68, 0x7f, 0), read(0x68, 0x2d, &burst())])
+            .chain(magnetometer_initialization(0x68, 8))
+            .collect();
+        let (mut sensor, mut delay, script) = setup(steps, Address::Primary, Config::default());
+        block_on(sensor.init(&mut delay)).unwrap();
+        assert_eq!(
+            block_on(sensor.init_magnetometer(&mut delay)),
+            Err(Error::Bus(FakeError))
+        );
+        assert_eq!(
+            block_on(sensor.read_magnetic_raw()),
+            Err(Error::MagnetometerNotInitialized)
+        );
+        block_on(sensor.read_raw()).unwrap();
+        block_on(sensor.init_magnetometer(&mut delay)).unwrap();
+        script.assert_done();
+    }
+}
+
+#[test]
+fn cancellation_at_every_magnetometer_init_await_preserves_inertial_reads() {
+    let magnetic = magnetometer_initialization(0x68, 8);
+    for index in 0..magnetic.len() {
+        let mut pending = magnetic[..=index].to_vec();
+        pending[index].outcome = Outcome::Pending;
+        let steps = initialization(0x68)
+            .into_iter()
+            .chain(pending)
+            .chain([write(0x68, 0x7f, 0), read(0x68, 0x2d, &burst())])
+            .chain(magnetometer_initialization(0x68, 8))
+            .collect();
+        let (mut sensor, mut delay, script) = setup(steps, Address::Primary, Config::default());
+        block_on(sensor.init(&mut delay)).unwrap();
+        cancel(sensor.init_magnetometer(&mut delay));
+        assert_eq!(
+            block_on(sensor.read_magnetic_raw()),
+            Err(Error::MagnetometerNotInitialized)
+        );
+        block_on(sensor.read_raw()).unwrap();
+        block_on(sensor.init_magnetometer(&mut delay)).unwrap();
         script.assert_done();
     }
 }
@@ -366,7 +472,10 @@ fn failed_or_cancelled_identity_reads_can_be_retried_without_initialization() {
                 cancel(sensor.who_am_i());
             }
             assert_eq!(block_on(sensor.who_am_i()), Ok(0xea));
-            assert_eq!(block_on(sensor.read_raw()), Err(Error::NotInitialized));
+            assert_eq!(
+                block_on(sensor.read_raw()),
+                Err(Error::InertialNotInitialized)
+            );
             script.assert_done();
         }
     }
@@ -538,12 +647,10 @@ fn magnetometer_modes_and_disabled_bypass_match_configuration() {
     ] {
         let mut steps = initialization(0x68);
         if mode == 0 {
-            steps.truncate(18);
-            steps[17] = write(0x68, 0x0f, 0);
-            steps.push(delay(100));
+            steps = inertial_initialization(0x68);
             steps.extend([write(0x68, 0x7f, 0), read(0x68, 0x2d, &burst())]);
         } else {
-            steps[21] = write(0x0c, 0x31, mode);
+            steps[24] = write(0x0c, 0x31, mode);
         }
         let (mut sensor, mut delay, script) = setup(
             steps,
@@ -561,6 +668,10 @@ fn magnetometer_modes_and_disabled_bypass_match_configuration() {
             );
             assert_eq!(
                 block_on(sensor.read_magnetic_sample()),
+                Err(Error::MagnetometerDisabled)
+            );
+            assert_eq!(
+                block_on(sensor.init_magnetometer(&mut delay)),
                 Err(Error::MagnetometerDisabled)
             );
             block_on(sensor.read_raw()).unwrap();

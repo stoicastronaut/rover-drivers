@@ -82,19 +82,40 @@ ambient-temperature measurement. No bias or magnetic compensation is applied.
 
 ## API and lifecycle behavior
 
-`new` performs no I/O. `init` validates the divider before I/O, waits 100 ms
-for power-up, checks ICM identity `0xEA`, resets it, waits another 100 ms, and
-configures continuous low-noise operation. With magnetometer enabled it
-exposes bypass, resets AK09916, waits 1 ms, checks identity `0x09`, and sets
-its rate. A final 100 ms allows sensor startup; this does not guarantee a fresh
-sample at every configured output rate. Use an async HAL delay implementation.
+`new` performs no I/O. `init_inertial` validates the divider before I/O, waits
+100 ms for power-up, checks ICM identity `0xEA`, resets it, waits another 100
+ms, configures continuous low-noise operation with bypass disabled, and waits
+100 ms for sensor startup. `init_magnetometer` then exposes bypass, resets the
+AK09916, waits 1 ms, checks identity `0x09`, sets its rate, and waits 100 ms for
+startup. These waits do not guarantee a fresh sample at every configured output
+rate. Use an async HAL delay implementation.
 
-All sample methods reject calls before successful initialization. A failed or
-cancelled `init`, including reinitialization of a working device, blocks sample
-reads until a complete `init` succeeds. Retrying reapplies the full sequence.
-Call `init` again after power loss or an external reset. `who_am_i` performs
-bank selection and I/O but neither initializes nor resets the device; allow
-power-up time before using it independently.
+`init` runs both stages in order when the magnetometer is enabled, or only the
+inertial stage when it is disabled. Call `init` again after power loss or an
+external reset. `who_am_i` performs bank selection and I/O but neither
+initializes nor resets the device; allow power-up time before using it
+independently.
+
+### Integration behavior: independent initialization
+
+Inertial and magnetic initialization have separate readiness state. Inertial
+reads require a successful `init_inertial`; magnetic reads additionally require
+a successful `init_magnetometer`. Reads attempted before inertial initialization
+return `Error::InertialNotInitialized`. A failed or cancelled inertial
+initialization invalidates both states and must be retried in full.
+
+A failed or cancelled magnetometer initialization leaves inertial reads
+available and returns the magnetic path to an uninitialized state. Retry
+`init_magnetometer` to repeat only bank selection, bypass configuration, and the
+complete AK09916 reset, identity, and mode sequence. It does not reset or
+reconfigure the inertial sensors. The recovery future still holds the driver
+and uses the shared I2C bus, so inertial reads cannot run concurrently with it.
+
+When magnetometer configuration is disabled, `init` initializes only the
+inertial sensors; magnetic initialization and reads return
+`Error::MagnetometerDisabled`. With an enabled but uninitialized magnetometer,
+magnetic reads return `Error::MagnetometerNotInitialized`. Starting any
+inertial reinitialization invalidates both readiness states.
 
 Every inertial read explicitly selects bank zero. Bank state is never cached,
 so an interrupted bank write cannot poison subsequent driver operations.

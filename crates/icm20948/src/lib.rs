@@ -220,10 +220,12 @@ pub enum Error<E> {
     InvalidMagnetometerWhoAmI(u8),
     /// Accelerometer divider exceeded 4095.
     InvalidConfig,
-    /// Complete initialization is required before reading samples.
-    NotInitialized,
+    /// Inertial initialization is required before reading samples.
+    InertialNotInitialized,
     /// Magnetometer was disabled in the configuration.
     MagnetometerDisabled,
+    /// Magnetometer initialization is required before reading magnetic samples.
+    MagnetometerNotInitialized,
     /// AK09916 reported overflow; this measurement was consumed and discarded.
     MagneticOverflow,
 }
@@ -233,7 +235,8 @@ pub struct Icm20948<I2C> {
     i2c: I2C,
     address: Address,
     config: Config,
-    initialized: bool,
+    inertial_initialized: bool,
+    magnetometer_initialized: bool,
 }
 
 impl<I2C> Icm20948<I2C> {
@@ -244,7 +247,8 @@ impl<I2C> Icm20948<I2C> {
             i2c,
             address,
             config,
-            initialized: false,
+            inertial_initialized: false,
+            magnetometer_initialized: false,
         }
     }
 
@@ -256,16 +260,37 @@ impl<I2C> Icm20948<I2C> {
 }
 
 impl<I2C: I2c> Icm20948<I2C> {
-    /// Reset, verify and configure the device in continuous low-noise mode.
+    /// Initialize the inertial sensors, then initialize the magnetometer if enabled.
     ///
-    /// Waits 100 ms before I/O, 100 ms after reset, 1 ms after magnetometer
-    /// reset (if enabled), and 100 ms after configuration for sensor startup.
-    /// Failed or cancelled initialization must be retried in full.
+    /// An inertial initialization failure or cancellation leaves all sample reads
+    /// blocked. A magnetometer initialization failure or cancellation leaves
+    /// inertial reads available and may be retried with [`Self::init_magnetometer`].
     ///
     /// # Errors
-    /// Returns configuration, identity or bus errors; sample reads remain blocked.
+    /// Returns configuration, identity or bus errors from either initialization stage.
     pub async fn init(&mut self, delay: &mut impl DelayNs) -> Result<(), Error<I2C::Error>> {
-        self.initialized = false;
+        self.init_inertial(delay).await?;
+        if self.config.magnetometer == MagnetometerMode::Disabled {
+            Ok(())
+        } else {
+            self.init_magnetometer(delay).await
+        }
+    }
+
+    /// Reset, verify and configure the inertial sensors in continuous low-noise mode.
+    ///
+    /// Waits 100 ms before I/O, 100 ms after reset, and 100 ms after configuration
+    /// for sensor startup. Starting this operation invalidates both inertial and
+    /// magnetometer readiness. A failure or cancellation must be retried in full.
+    ///
+    /// # Errors
+    /// Returns configuration, inertial identity or bus errors.
+    pub async fn init_inertial(
+        &mut self,
+        delay: &mut impl DelayNs,
+    ) -> Result<(), Error<I2C::Error>> {
+        self.inertial_initialized = false;
+        self.magnetometer_initialized = false;
         if self.config.accel_sample_rate_divider > 4095 {
             return Err(Error::InvalidConfig);
         }
@@ -298,33 +323,54 @@ impl<I2C: I2c> Icm20948<I2C> {
         )
         .await?;
         self.write_register(REG_BANK_SEL, 0).await?;
-        let mag_enabled = self.config.magnetometer != MagnetometerMode::Disabled;
-        self.write_register(REG_INT_PIN_CFG, if mag_enabled { 0x02 } else { 0 })
-            .await?;
-        if mag_enabled {
-            self.i2c
-                .write(MAG_ADDRESS, &[REG_MAG_CNTL3, 1])
-                .await
-                .map_err(Error::Bus)?;
-            delay.delay_ms(1).await;
-            let mut identity = [0];
-            self.i2c
-                .write_read(MAG_ADDRESS, &[REG_MAG_WIA2], &mut identity)
-                .await
-                .map_err(Error::Bus)?;
-            if identity[0] != 0x09 {
-                return Err(Error::InvalidMagnetometerWhoAmI(identity[0]));
-            }
-            self.i2c
-                .write(
-                    MAG_ADDRESS,
-                    &[REG_MAG_CNTL2, self.config.magnetometer as u8],
-                )
-                .await
-                .map_err(Error::Bus)?;
-        }
+        self.write_register(REG_INT_PIN_CFG, 0).await?;
         delay.delay_ms(100).await;
-        self.initialized = true;
+        self.inertial_initialized = true;
+        Ok(())
+    }
+
+    /// Reset, verify and configure the enabled magnetometer without resetting the ICM.
+    ///
+    /// Inertial initialization must already be complete. Starting this operation
+    /// invalidates only magnetometer readiness. A failure or cancellation leaves
+    /// inertial reads available; retry this method in full once the HAL bus is usable.
+    /// Waits 1 ms after the AK09916 reset and 100 ms after configuration.
+    ///
+    /// # Errors
+    /// Returns lifecycle, disabled magnetometer, magnetic identity or bus errors.
+    pub async fn init_magnetometer(
+        &mut self,
+        delay: &mut impl DelayNs,
+    ) -> Result<(), Error<I2C::Error>> {
+        self.require_inertial_initialized()?;
+        if self.config.magnetometer == MagnetometerMode::Disabled {
+            return Err(Error::MagnetometerDisabled);
+        }
+        self.magnetometer_initialized = false;
+        self.write_register(REG_BANK_SEL, 0).await?;
+        self.write_register(REG_INT_PIN_CFG, 0x02).await?;
+        self.i2c
+            .write(MAG_ADDRESS, &[REG_MAG_CNTL3, 1])
+            .await
+            .map_err(Error::Bus)?;
+        delay.delay_ms(1).await;
+        let mut identity = [0];
+        self.i2c
+            .write_read(MAG_ADDRESS, &[REG_MAG_WIA2], &mut identity)
+            .await
+            .map_err(Error::Bus)?;
+        if identity[0] != 0x09 {
+            return Err(Error::InvalidMagnetometerWhoAmI(identity[0]));
+        }
+        self.i2c
+            .write(
+                MAG_ADDRESS,
+                &[REG_MAG_CNTL2, self.config.magnetometer as u8],
+            )
+            .await
+            .map_err(Error::Bus)?;
+        delay.delay_ms(100).await;
+        self.magnetometer_initialized = true;
         Ok(())
     }
 
@@ -347,9 +393,9 @@ impl<I2C: I2c> Icm20948<I2C> {
     /// Does not wait for fresh data. Failed/cancelled reads may be retried.
     ///
     /// # Errors
-    /// Returns [`Error::NotInitialized`] or [`Error::Bus`].
+    /// Returns [`Error::InertialNotInitialized`] or [`Error::Bus`].
     pub async fn read_raw(&mut self) -> Result<RawSample, Error<I2C::Error>> {
-        self.require_initialized()?;
+        self.require_inertial_initialized()?;
         self.write_register(REG_BANK_SEL, 0).await?;
         let mut bytes = [0; 14];
         self.i2c
@@ -366,7 +412,7 @@ impl<I2C: I2c> Icm20948<I2C> {
     /// Read the latest inertial burst and convert to m/s², rad/s and °C.
     ///
     /// # Errors
-    /// Returns [`Error::NotInitialized`] or [`Error::Bus`].
+    /// Returns [`Error::InertialNotInitialized`] or [`Error::Bus`].
     pub async fn read_sample(&mut self) -> Result<Sample, Error<I2C::Error>> {
         let raw = self.read_raw().await?;
         let accel_counts_per_g = match self.config.accel_range {
@@ -403,10 +449,11 @@ impl<I2C: I2c> Icm20948<I2C> {
     pub async fn read_magnetic_raw(
         &mut self,
     ) -> Result<Option<RawMagneticSample>, Error<I2C::Error>> {
-        self.require_initialized()?;
+        self.require_inertial_initialized()?;
         if self.config.magnetometer == MagnetometerMode::Disabled {
             return Err(Error::MagnetometerDisabled);
         }
+        self.require_magnetometer_initialized()?;
         let mut bytes = [0; 9];
         self.i2c
             .write_read(MAG_ADDRESS, &[REG_MAG_ST1], &mut bytes)
@@ -443,11 +490,19 @@ impl<I2C: I2c> Icm20948<I2C> {
         }))
     }
 
-    fn require_initialized(&self) -> Result<(), Error<I2C::Error>> {
-        if self.initialized {
+    fn require_inertial_initialized(&self) -> Result<(), Error<I2C::Error>> {
+        if self.inertial_initialized {
             Ok(())
         } else {
-            Err(Error::NotInitialized)
+            Err(Error::InertialNotInitialized)
+        }
+    }
+
+    fn require_magnetometer_initialized(&self) -> Result<(), Error<I2C::Error>> {
+        if self.magnetometer_initialized {
+            Ok(())
+        } else {
+            Err(Error::MagnetometerNotInitialized)
         }
     }
 
