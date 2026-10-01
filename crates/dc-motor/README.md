@@ -32,13 +32,33 @@ async fn example<A: SetDutyCycle, B: SetDutyCycle>(
     motor.initialize(delay).await?;
     motor.drive(MotorState::Forward, Power::new(64), delay).await?;
     motor.stop(delay).await?;
-    // Direction and power calls also compose, as in an Arduino-style API.
-    motor.set_direction(MotorState::Backward, delay).await?;
-    motor.set_power(Power::new(64))?;
-    motor.stop(delay).await?;
     Ok(motor.release())
 }
 ```
+
+### Direction and power: two alternatives
+
+After initialization, choose either approach to command the motor. You do not
+need to call all three methods for the same command.
+
+Use `drive()` to set direction and power together:
+
+```rust,ignore
+motor.drive(MotorState::Forward, Power::new(64), delay).await?;
+```
+
+Or use `set_direction()` followed by `set_power()` for the same result:
+
+```rust,ignore
+motor.set_direction(MotorState::Forward, delay).await?;
+motor.set_power(Power::new(64))?;
+```
+
+`drive()` calls these two methods internally. With either approach, you can
+later call `set_power()` alone to adjust duty without changing direction.
+A changed direction clears power, so apply the desired power afterwards or
+use `drive()` to do both. An unchanged direction retains the current power.
+Call `stop(delay).await?` to stop with either approach.
 
 `Power` is duty `0..=255`, not measured watts, torque, or RPM. The active
 handle receives `floor(power * max_duty_cycle / 255)`; zero and full map to
@@ -56,9 +76,10 @@ initialization return `NotInitialized`. Stop clears both direction and power.
 `drive(Stopped, power, delay)` always requests zero regardless of its power
 argument. Selecting a changed direction disables the previously active input
 first, disables the other input, clears power, waits, then prepares the new
-direction at zero power. Apply power explicitly after `set_direction`; `drive`
-does that for you. An unchanged direction permits a duty update without another
-wait. Preparing a direction at zero power retains that selected direction.
+direction at zero power. After changing direction with `set_direction`, apply
+power explicitly; `drive` does that for you. An unchanged direction permits a
+duty update without another wait. Preparing a direction at zero power retains
+that selected direction.
 
 The configured nonzero wait, in microseconds, must cover the actual PWM timer's
 zero-duty update latency plus bridge dead time. Zero writes can take effect at
