@@ -14,7 +14,8 @@ project.
   drivers.
 
 Firmware selects the `bmp388`, `mpu6050`, `icm20948`, and `gm009605` drivers through
-catalog features. The GM009605 driver supports the four-pin SSD1306 128×64 OLED
+catalog features. The `dc-motor` feature adds a portable two-input PWM brushed
+DC motor driver; see its [API guide](crates/dc-motor/README.md). The GM009605 driver supports the four-pin SSD1306 128×64 OLED
 with async I2C and `embedded-graphics`; see its [API guide](crates/gm009605/README.md)
 and [upstream evaluation](docs/gm009605-driver-evaluation.md).
 
@@ -25,8 +26,8 @@ See [the usage guide](docs/using-drivers.md) for dependency and import examples.
 
 ## Library versions
 
-The workspace uses Rust 2024 with a minimum Rust version of 1.98. All four
-driver crates (`bmp388`, `mpu6050`, `icm20948`, `gm009605`) and the
+The workspace uses Rust 2024 with a minimum Rust version of 1.98. All five
+driver crates (`bmp388`, `mpu6050`, `icm20948`, `gm009605`, `dc-motor`) and the
 `rover-drivers` catalog are version `0.1.0`.
 
 The table lists direct external dependencies. Requirements come from each
@@ -35,12 +36,12 @@ allow compatible updates and are not exact pins.
 
 | Library | Cargo requirement | Resolved version | Used by / purpose |
 | --- | --- | --- | --- |
-| `embedded-hal-async` | `1.0.0` (BMP388); `1.0` (others) | `1.0.0` | All four drivers: async HAL traits |
+| `embedded-hal-async` | `1.0.0` (BMP388); `1.0` (others) | `1.0.0` | All five drivers: async HAL traits |
 | `embedded-graphics-core` | `0.4` | `0.4.1` | GM009605: drawing traits and pixel types |
 | `display-interface` | `0.5` | `0.5.0` | GM009605: display interface errors |
 | `ssd1306` | `0.10.0` | `0.10.0` | GM009605: controller support; defaults disabled, `async` enabled |
-| `embedded-hal` | `1.0` | `1.0.0` | All four drivers: test-only HAL bus doubles |
-| `futures` | `0.3.34` | `0.3.34` | All four drivers: test-only async execution, `executor` enabled |
+| `embedded-hal` | `1.0` | `1.0.0` | Motor: production PWM traits; four sensor/display drivers: test-only HAL bus doubles |
+| `futures` | `0.3.34` | `0.3.34` | All five drivers: test-only async execution, `executor` enabled |
 | `embedded-graphics` | `0.8` | `0.8.2` | GM009605: test-only drawing support |
 
 The catalog has optional local dependencies on each driver at version `0.1.0`

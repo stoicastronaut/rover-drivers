@@ -20,3 +20,6 @@ pub use gm009605;
 
 #[cfg(feature = "icm20948")]
 pub use icm20948;
+
+#[cfg(feature = "dc-motor")]
+pub use dc_motor;

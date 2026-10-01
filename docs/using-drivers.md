@@ -34,6 +34,7 @@ handle to the driver. Drivers can also accept compatible shared-bus adapters.
 
 | Feature | Import | Device |
 | --- | --- | --- |
+| `dc-motor` | `rover_drivers::dc_motor` | Two-input PWM brushed DC H-bridge |
 | `bmp388` | `rover_drivers::bmp388` | Bosch pressure/temperature sensor |
 | `icm20948` | `rover_drivers::icm20948` | Nine-axis IMU and die temperature, magnetometer via I2C bypass |
 | `mpu6050` | `rover_drivers::mpu6050` | Accelerometer/gyroscope |
@@ -54,3 +55,16 @@ Applications can also depend directly on an individual crate:
 [dependencies]
 gm009605 = { path = "../rover-drivers/crates/gm009605" }
 ```
+
+## Two-input motor outputs
+
+Select `features = ["dc-motor"]` and import
+`rover_drivers::dc_motor::{Motor, MotorId, MotorConfig, MotorState, Power}`.
+Create two independent MCU PWM handles implementing `SetDutyCycle` for each
+motor. The caller owns pin/frequency setup and supplies a `DelayNs` during
+initialization and direction transitions. No enable pin is required.
+
+See the [motor API and generic HAL example](../crates/dc-motor/README.md) for
+polarity, duty scaling, stop, failure cleanup, timer latency, and cancellation.
+Confirm the actual bridge and motor voltage ratings separately before hardware
+use. The driver reports commanded state and cannot detect wheel motion.
