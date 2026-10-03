@@ -27,7 +27,6 @@ pub enum Address {
     Secondary = 0x3D,
 }
 
-/// Initialization or transfer failure.
 #[derive(Debug)]
 pub enum Error {
     /// Call `init` successfully before flushing.

@@ -50,7 +50,6 @@ pub enum Address {
     Secondary = 0x69,
 }
 
-/// Accelerometer full-scale range.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u8)]
 pub enum AccelRange {
@@ -64,7 +63,6 @@ pub enum AccelRange {
     G16 = 3,
 }
 
-/// Gyroscope full-scale range.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u8)]
 pub enum GyroRange {
@@ -82,19 +80,12 @@ pub enum GyroRange {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u8)]
 pub enum AccelDlpf {
-    /// 246 Hz.
     Hz246 = 1,
-    /// 111.4 Hz.
     Hz111_4 = 2,
-    /// 50.4 Hz.
     Hz50_4 = 3,
-    /// 23.9 Hz.
     Hz23_9 = 4,
-    /// 11.5 Hz.
     Hz11_5 = 5,
-    /// 5.7 Hz.
     Hz5_7 = 6,
-    /// 473 Hz.
     Hz473 = 7,
 }
 
@@ -102,17 +93,11 @@ pub enum AccelDlpf {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u8)]
 pub enum GyroDlpf {
-    /// 151.8 Hz.
     Hz151_8 = 1,
-    /// 119.5 Hz.
     Hz119_5 = 2,
-    /// 51.2 Hz.
     Hz51_2 = 3,
-    /// 23.9 Hz.
     Hz23_9 = 4,
-    /// 11.6 Hz.
     Hz11_6 = 5,
-    /// 5.7 Hz.
     Hz5_7 = 6,
 }
 
@@ -122,26 +107,18 @@ pub enum GyroDlpf {
 pub enum MagnetometerMode {
     /// Do not expose or configure the magnetometer.
     Disabled = 0,
-    /// 10 Hz.
     Hz10 = 2,
-    /// 20 Hz.
     Hz20 = 4,
-    /// 50 Hz.
     Hz50 = 6,
-    /// 100 Hz.
     Hz100 = 8,
 }
 
 /// Configuration applied by every initialization; filters are always enabled.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Config {
-    /// Accelerometer full-scale range.
     pub accel_range: AccelRange,
-    /// Gyroscope full-scale range.
     pub gyro_range: GyroRange,
-    /// Accelerometer low-pass filter.
     pub accel_dlpf: AccelDlpf,
-    /// Gyroscope low-pass filter.
     pub gyro_dlpf: GyroDlpf,
     /// Accelerometer rate is nominally 1125 / (1 + divider) Hz; maximum 4095.
     pub accel_sample_rate_divider: u16,
@@ -209,7 +186,6 @@ pub struct MagneticSample {
     pub overrun: bool,
 }
 
-/// Transport, identity, configuration and lifecycle errors.
 #[derive(Debug, PartialEq, Eq)]
 pub enum Error<E> {
     /// Original HAL error from either I2C address.
@@ -222,7 +198,6 @@ pub enum Error<E> {
     InvalidConfig,
     /// Inertial initialization is required before reading samples.
     InertialNotInitialized,
-    /// Magnetometer was disabled in the configuration.
     MagnetometerDisabled,
     /// Magnetometer initialization is required before reading magnetic samples.
     MagnetometerNotInitialized,

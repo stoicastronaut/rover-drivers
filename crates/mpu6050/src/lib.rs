@@ -6,21 +6,12 @@ use embedded_hal_async::i2c::I2c;
 /// Standard acceleration of gravity in m/s², used to convert g to SI units.
 const STANDARD_GRAVITY_M_S2: f32 = 9.806_65;
 
-// Frequency divider; 1kHz -> 200Hz
 const REG_SMPLRT_DIV: u8 = 0x19;
-
-// Enables the 44Hz Low-pass filtering
 const REG_CONFIG: u8 = 0x1A;
-
-// Gyro Config -> +-500°/s
 const REG_GYRO_CONFIG: u8 = 0x1B;
-
-// Select+-4g
 const REG_ACCEL_CONFIG: u8 = 0x1C;
 const REG_ACCEL_XOUT_H: u8 = 0x3B;
 const REG_PWR_MGMT_1: u8 = 0x6B;
-
-// Confirms the MPU6050
 const REG_WHO_AM_I: u8 = 0x75;
 
 const WHO_AM_I_MPU6050: u8 = 0x68;
@@ -194,8 +185,6 @@ where
             .await
     }
 
-    /// Read the device identity register.
-    ///
     /// # Errors
     ///
     /// Returns [`Error::Bus`] when the I2C transaction fails.
@@ -234,8 +223,6 @@ where
         })
     }
 
-    /// Read one burst and convert it into SI physical units.
-    ///
     /// # Errors
     ///
     /// Returns [`Error::Bus`] when the I2C transaction fails.
