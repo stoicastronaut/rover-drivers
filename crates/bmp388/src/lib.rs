@@ -41,17 +41,11 @@ pub enum Address {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u8)]
 pub enum Oversampling {
-    /// One conversion per sample.
     X1 = 0,
-    /// Two conversions per sample.
     X2 = 1,
-    /// Four conversions per sample.
     X4 = 2,
-    /// Eight conversions per sample.
     X8 = 3,
-    /// Sixteen conversions per sample.
     X16 = 4,
-    /// Thirty-two conversions per sample.
     X32 = 5,
 }
 
@@ -93,21 +87,13 @@ impl OutputDataRate {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u8)]
 pub enum IirFilter {
-    /// Disable the IIR filter.
     Off = 0,
-    /// Filter coefficient 1.
     Coefficient1 = 1,
-    /// Filter coefficient 3.
     Coefficient3 = 2,
-    /// Filter coefficient 7.
     Coefficient7 = 3,
-    /// Filter coefficient 15.
     Coefficient15 = 4,
-    /// Filter coefficient 31.
     Coefficient31 = 5,
-    /// Filter coefficient 63.
     Coefficient63 = 6,
-    /// Filter coefficient 127.
     Coefficient127 = 7,
 }
 
@@ -115,13 +101,9 @@ pub enum IirFilter {
 /// [`Bmp388::configure`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Config {
-    /// Pressure oversampling ratio.
     pub pressure_oversampling: Oversampling,
-    /// Temperature oversampling ratio.
     pub temperature_oversampling: Oversampling,
-    /// Normal-mode output data rate.
     pub output_data_rate: OutputDataRate,
-    /// IIR filter setting.
     pub iir_filter: IirFilter,
 }
 
@@ -179,7 +161,6 @@ impl SensorErrors {
         }
     }
 
-    /// Returns `true` when any sensor error flag is set.
     #[must_use]
     pub const fn any(self) -> bool {
         self.fatal || self.command || self.configuration
@@ -210,9 +191,7 @@ impl Status {
 /// Uncompensated 24-bit pressure and temperature ADC readings.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct RawSample {
-    /// Raw pressure ADC value.
     pub pressure: u32,
-    /// Raw temperature ADC value.
     pub temperature: u32,
 }
 
@@ -234,10 +213,8 @@ pub struct Measurement {
     pub temperature_celsius: f64,
 }
 
-/// Errors returned by the BMP388 driver.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Error<E> {
-    /// The underlying I2C transaction failed.
     Bus(E),
     /// The device returned a chip ID other than `0x50`.
     InvalidChipId(u8),
@@ -249,7 +226,6 @@ pub enum Error<E> {
     CommandReadyTimeout,
     /// Fresh pressure and temperature data did not arrive in time.
     MeasurementTimeout,
-    /// The device reported one or more internal error flags.
     SensorFault(SensorErrors),
     /// The requested operation is incompatible with the current power mode.
     InvalidState,
@@ -334,7 +310,6 @@ impl Calibration {
     }
 }
 
-/// BMP388 driver using an asynchronous I2C bus.
 pub struct Bmp388<I2C> {
     i2c: I2C,
     address: Address,
@@ -362,13 +337,11 @@ impl<I2C> Bmp388<I2C> {
         }
     }
 
-    /// Returns the currently selected settings.
     #[must_use]
     pub const fn config(&self) -> Config {
         self.config
     }
 
-    /// Consumes the driver and returns its I2C bus handle.
     #[must_use]
     pub fn release(self) -> I2C {
         self.i2c
@@ -400,8 +373,6 @@ where
         self.configure(self.config).await
     }
 
-    /// Reads the device identity register.
-    ///
     /// # Errors
     ///
     /// Returns [`Error::Bus`] if the I2C transaction fails.
@@ -409,8 +380,6 @@ where
         self.read_register(REG_CHIP_ID).await
     }
 
-    /// Verifies that the connected device reports the BMP388 chip ID.
-    ///
     /// # Errors
     ///
     /// Returns [`Error::InvalidChipId`] for another device or [`Error::Bus`]
@@ -424,8 +393,6 @@ where
         }
     }
 
-    /// Reads command and measurement readiness flags.
-    ///
     /// # Errors
     ///
     /// Returns [`Error::Bus`] if the I2C transaction fails.
@@ -434,8 +401,6 @@ where
         Ok(Status::from_register(value))
     }
 
-    /// Reads the sensor's internal error flags.
-    ///
     /// Command and configuration flags are cleared by this read.
     ///
     /// # Errors
@@ -468,8 +433,6 @@ where
         self.wait_for_command_ready(delay).await
     }
 
-    /// Applies pressure, temperature, data-rate, and filter settings.
-    ///
     /// The sensor is left in sleep mode. Stop normal mode before reconfiguring.
     ///
     /// # Errors

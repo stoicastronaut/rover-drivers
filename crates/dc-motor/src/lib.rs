@@ -17,6 +17,8 @@ pub struct MotorId(u8);
 pub struct InvalidMotorId;
 
 impl MotorId {
+    /// # Errors
+    /// Returns [`InvalidMotorId`] for zero.
     pub const fn new(value: u8) -> Result<Self, InvalidMotorId> {
         if value == 0 {
             Err(InvalidMotorId)
@@ -61,6 +63,8 @@ pub struct MotorConfig {
     commutation_wait_us: u32,
 }
 impl MotorConfig {
+    /// # Errors
+    /// Returns [`InvalidConfig`] for a zero commutation wait.
     pub const fn new(inverted: bool, commutation_wait_us: u32) -> Result<Self, InvalidConfig> {
         if commutation_wait_us == 0 {
             Err(InvalidConfig)
@@ -80,7 +84,6 @@ impl MotorConfig {
         self.commutation_wait_us
     }
 }
-
 
 pub struct Motor<A, B> {
     id: MotorId,
@@ -125,8 +128,7 @@ impl<A: SetDutyCycle, B: SetDutyCycle> Motor<A, B> {
         (self.a, self.b)
     }
 
-    /// Invalidates initialization and attempts to disable both inputs after a PWM failure.
-    /// Returns the original error, ignoring cleanup errors; physical outputs remain unknown.
+    /// Cleanup is best-effort; physical outputs remain unknown even if it succeeds.
     fn failed(&mut self, error: Error<A::Error, B::Error>) -> Error<A::Error, B::Error> {
         self.initialized = false;
         self.state = None;
@@ -170,6 +172,8 @@ impl<A: SetDutyCycle, B: SetDutyCycle> Motor<A, B> {
         }
     }
 
+    /// # Errors
+    /// Returns a PWM error or [`Error::InvalidPwmMaximum`] if either maximum duty is zero.
     pub async fn initialize(
         &mut self,
         delay: &mut impl DelayNs,
@@ -185,7 +189,7 @@ impl<A: SetDutyCycle, B: SetDutyCycle> Motor<A, B> {
         Ok(())
     }
 
-    /// Prepares direction. A changed direction clears power and disables both
+    /// A changed direction clears power and disables both
     /// inputs before waiting. Set power explicitly afterwards. Cancellation after
     /// disable leaves the commanded state stopped; physical disable still depends
     /// on the peripheral's update latency. An unchanged direction retains power.
@@ -235,8 +239,7 @@ impl<A: SetDutyCycle, B: SetDutyCycle> Motor<A, B> {
         Ok(())
     }
 
-    /// Combines direction preparation and duty application. Stopped always clears
-    /// power, even if a nonzero power argument was supplied.
+    /// Stopped always clears power, even if a nonzero power argument was supplied.
     ///
     /// # Errors
     /// Returns a lifecycle or PWM error.

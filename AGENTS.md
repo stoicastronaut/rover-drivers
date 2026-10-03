@@ -52,6 +52,14 @@ Keep unit tests close to the driver: use an internal `#[cfg(test)]` module or
 register values, error propagation, and retry/cancellation behavior with fake
 HAL buses; do not require physical hardware for the workspace test suite.
 
+## End-of-task comment review
+
+Run the [prune-comments skill](.agents/skills/prune-comments/SKILL.md) at the end
+of every task, before the final handoff and before committing or publishing
+finished changes. Review the task's touched code; tasks without code changes
+require no comment edits. Also run it whenever the user invokes
+`$prune-comments` or requests comment pruning, using the requested scope.
+
 ## Commit & Pull Request Guidelines
 
 Use concise, imperative Conventional Commit-style subjects when working on a
